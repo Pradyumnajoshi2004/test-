@@ -5,17 +5,30 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DBConnection {
-    // Use environment variables for Railway
-    private static final String DB_HOST = System.getenv("DB_HOST") != null ? System.getenv("DB_HOST") : "mysql.railway.internal";
-    private static final String DB_PORT = System.getenv("DB_PORT") != null ? System.getenv("DB_PORT") : "3306";
-    private static final String DB_NAME = System.getenv("DB_NAME") != null ? System.getenv("DB_NAME") : "railway";
-    private static final String DB_USER = System.getenv("DB_USER") != null ? System.getenv("DB_USER") : "root";
-    private static final String DB_PASSWORD = System.getenv("DB_PASSWORD") != null ? System.getenv("DB_PASSWORD") : "dBuFCYXSjiJFCUMCnXpcCpaADWcMHmzh";
-    
-    private static final String URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME + "?useSSL=false&serverTimezone=UTC";
     
     public static Connection getConnection() throws SQLException, ClassNotFoundException {
         Class.forName("com.mysql.cj.jdbc.Driver");
-        return DriverManager.getConnection(URL, DB_USER, DB_PASSWORD);
+        
+        // Try to get MySQL URL from Railway
+        String mysqlUrl = System.getenv("MYSQL_URL");
+        
+        if (mysqlUrl != null && !mysqlUrl.isEmpty()) {
+            // Railway provides: mysql://root:password@mysql.railway.internal:3306/railway
+            // Convert to JDBC format: jdbc:mysql://root:password@mysql.railway.internal:3306/railway
+            String jdbcUrl = mysqlUrl.replace("mysql://", "jdbc:mysql://");
+            return DriverManager.getConnection(jdbcUrl);
+        }
+        
+        // Fallback for local development
+        String host = System.getenv("DB_HOST") != null ? System.getenv("DB_HOST") : "localhost";
+        String port = System.getenv("DB_PORT") != null ? System.getenv("DB_PORT") : "3306";
+        String database = System.getenv("DB_NAME") != null ? System.getenv("DB_NAME") : "event_api_db";
+        String user = System.getenv("DB_USER") != null ? System.getenv("DB_USER") : "root";
+        String password = System.getenv("DB_PASSWORD") != null ? System.getenv("DB_PASSWORD") : "dBuFCYXSjiJFCUMCnXpcCpaADWcMHmzh";
+        
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database + 
+                     "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
+        
+        return DriverManager.getConnection(url, user, password);
     }
 }
