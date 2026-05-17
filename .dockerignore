@@ -1,0 +1,7 @@
+target/
+src/main/java/
+src/main/webapp/
+pom.xml
+.git/
+*.md
+.vscode/
