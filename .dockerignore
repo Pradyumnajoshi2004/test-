@@ -1,7 +1,5 @@
-target/
-src/main/java/
-src/main/webapp/
-pom.xml
-.git/
-*.md
-.vscode/
+# Ignore everything except what we need
+*
+!pom.xml
+!src/
+!Dockerfile

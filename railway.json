@@ -1,0 +1,10 @@
+{
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "catalina.sh run",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
