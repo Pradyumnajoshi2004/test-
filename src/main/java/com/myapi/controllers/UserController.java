@@ -1,7 +1,6 @@
 package com.myapi.controllers;
 
 import com.myapi.config.DBConnection;
-import com.myapi.models.User;
 import com.myapi.utils.JWTUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -59,6 +58,9 @@ public class UserController extends HttpServlet {
         String pathInfo = request.getPathInfo();
         if (pathInfo != null && !"/".equals(pathInfo)) {
             updateUser(request, response);
+        } else {
+            response.setStatus(404);
+            response.getWriter().write("{\"errors\":true,\"message\":\"Endpoint not found\"}");
         }
     }
     
@@ -68,6 +70,9 @@ public class UserController extends HttpServlet {
         String pathInfo = request.getPathInfo();
         if (pathInfo != null && !"/".equals(pathInfo)) {
             deleteUser(request, response);
+        } else {
+            response.setStatus(404);
+            response.getWriter().write("{\"errors\":true,\"message\":\"Endpoint not found\"}");
         }
     }
     
