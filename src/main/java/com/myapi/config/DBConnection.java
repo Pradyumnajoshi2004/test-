@@ -9,23 +9,22 @@ public class DBConnection {
     public static Connection getConnection() throws SQLException, ClassNotFoundException {
         Class.forName("org.postgresql.Driver");
         
-        // For Render PostgreSQL
+        // Get DATABASE_URL from Render environment
         String dbUrl = System.getenv("DATABASE_URL");
         
-        if (dbUrl != null && !dbUrl.isEmpty()) {
-            // Render provides DATABASE_URL in format: postgresql://user:pass@host:port/db
-            System.out.println("Connecting to Render PostgreSQL");
-            return DriverManager.getConnection(dbUrl);
+        // If DATABASE_URL is not found, try the public URL
+        if (dbUrl == null || dbUrl.isEmpty()) {
+            dbUrl = System.getenv("DATABASE_PUBLIC_URL");
         }
         
-        // Fallback for local development (if you have PostgreSQL locally)
-        String host = "localhost";
-        String port = "5432";
-        String database = "event_api_di0q";
-        String user = "event_api_di0q_user";
-        String password = "0RhPJfMG5f45y98Lc5PW5LZyRKmrlaw3";
+        // If still not found, throw an error
+        if (dbUrl == null || dbUrl.isEmpty()) {
+            throw new SQLException("DATABASE_URL environment variable is not set. Please add PostgreSQL database on Render.");
+        }
         
-        String url = "jdbc:postgresql://" + host + ":" + port + "/" + database;
-        return DriverManager.getConnection(url, user, password);
+        // Render's URL is in format: postgresql://user:pass@host:port/database
+        // The PostgreSQL driver accepts this directly - no conversion needed
+        System.out.println("Connecting to Render PostgreSQL at: " + dbUrl.substring(0, Math.min(50, dbUrl.length())) + "...");
+        return DriverManager.getConnection(dbUrl);
     }
 }
