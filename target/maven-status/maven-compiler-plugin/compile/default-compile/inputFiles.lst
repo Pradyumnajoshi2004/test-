@@ -1,4 +1,5 @@
 D:\event-api\src\main\java\com\myapi\utils\JWTUtil.java
+D:\event-api\src\main\java\com\myapi\middleware\CorsFilter.java
 D:\event-api\src\main\java\com\myapi\models\User.java
 D:\event-api\src\main\java\com\myapi\controllers\UserController.java
 D:\event-api\src\main\java\com\myapi\controllers\EventController.java

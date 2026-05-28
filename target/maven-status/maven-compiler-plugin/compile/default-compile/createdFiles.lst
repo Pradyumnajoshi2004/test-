@@ -1,5 +1,6 @@
 com\myapi\models\Event.class
 com\myapi\controllers\EventController.class
+com\myapi\middleware\CorsFilter.class
 com\myapi\models\User.class
 com\myapi\utils\JWTUtil.class
 com\myapi\middleware\AuthFilter.class

@@ -25,11 +25,11 @@
             <scope>provided</scope>
         </dependency>
         
-        <!-- PostgreSQL Driver (Replace MySQL with this) -->
+        <!-- PostgreSQL Driver (NOT MySQL) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.1</version>
+            <version>42.7.3</version>
         </dependency>
         
         <!-- Gson for JSON -->

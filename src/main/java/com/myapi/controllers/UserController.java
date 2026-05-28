@@ -5,6 +5,7 @@ import com.myapi.utils.JWTUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -12,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.mindrot.jbcrypt.BCrypt;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -23,6 +25,18 @@ import java.sql.Statement;
 public class UserController extends HttpServlet {
     
     private Gson gson = new Gson();
+    
+    // Helper method to read JSON from request body
+    private JsonObject getJsonFromRequest(HttpServletRequest request) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        String line;
+        try (BufferedReader reader = request.getReader()) {
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+        }
+        return JsonParser.parseString(sb.toString()).getAsJsonObject();
+    }
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -110,76 +124,80 @@ public class UserController extends HttpServlet {
         }
     }
     
-    // POST /api/users/register - Register new user
+    // POST /api/users/register - Register new user (JSON format)
     private void registerUser(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
         
-        String name = request.getParameter("name");
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-        
-        if (name == null || email == null || password == null) {
-            response.setStatus(400);
-            JsonObject error = new JsonObject();
-            error.addProperty("errors", true);
-            error.addProperty("message", "Name, email, and password are required");
-            out.print(gson.toJson(error));
-            return;
-        }
-        
-        try (Connection conn = DBConnection.getConnection()) {
-            // Check if user exists
-            String checkSql = "SELECT id FROM users WHERE email = ?";
-            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
-            checkStmt.setString(1, email);
-            ResultSet rs = checkStmt.executeQuery();
+        try {
+            // Read JSON from request body
+            JsonObject json = getJsonFromRequest(request);
             
-            if (rs.next()) {
+            String name = json.has("name") ? json.get("name").getAsString() : null;
+            String email = json.has("email") ? json.get("email").getAsString() : null;
+            String password = json.has("password") ? json.get("password").getAsString() : null;
+            
+            if (name == null || email == null || password == null) {
                 response.setStatus(400);
                 JsonObject error = new JsonObject();
                 error.addProperty("errors", true);
-                error.addProperty("message", "User already exists with this email");
+                error.addProperty("message", "Name, email, and password are required");
                 out.print(gson.toJson(error));
                 return;
             }
             
-            // Hash password
-            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            
-            // Insert user
-            String sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
-            PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            pstmt.setString(1, name);
-            pstmt.setString(2, email);
-            pstmt.setString(3, hashedPassword);
-            
-            int affected = pstmt.executeUpdate();
-            
-            if (affected > 0) {
-                ResultSet generatedKeys = pstmt.getGeneratedKeys();
-                if (generatedKeys.next()) {
-                    int userId = generatedKeys.getInt(1);
-                    
-                    JsonObject userData = new JsonObject();
-                    userData.addProperty("id", userId);
-                    userData.addProperty("name", name);
-                    userData.addProperty("email", email);
-                    
-                    JsonObject result = new JsonObject();
-                    result.addProperty("errors", false);
-                    result.add("data", userData);
-                    out.print(gson.toJson(result));
+            try (Connection conn = DBConnection.getConnection()) {
+                // Check if user exists
+                String checkSql = "SELECT id FROM users WHERE email = ?";
+                PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+                checkStmt.setString(1, email);
+                ResultSet rs = checkStmt.executeQuery();
+                
+                if (rs.next()) {
+                    response.setStatus(400);
+                    JsonObject error = new JsonObject();
+                    error.addProperty("errors", true);
+                    error.addProperty("message", "User already exists with this email");
+                    out.print(gson.toJson(error));
+                    return;
                 }
-            } else {
-                response.setStatus(500);
-                JsonObject error = new JsonObject();
-                error.addProperty("errors", true);
-                error.addProperty("message", "Failed to register user");
-                out.print(gson.toJson(error));
+                
+                // Hash password
+                String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+                
+                // Insert user
+                String sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                pstmt.setString(1, name);
+                pstmt.setString(2, email);
+                pstmt.setString(3, hashedPassword);
+                
+                int affected = pstmt.executeUpdate();
+                
+                if (affected > 0) {
+                    ResultSet generatedKeys = pstmt.getGeneratedKeys();
+                    if (generatedKeys.next()) {
+                        int userId = generatedKeys.getInt(1);
+                        
+                        JsonObject userData = new JsonObject();
+                        userData.addProperty("id", userId);
+                        userData.addProperty("name", name);
+                        userData.addProperty("email", email);
+                        
+                        JsonObject result = new JsonObject();
+                        result.addProperty("errors", false);
+                        result.add("data", userData);
+                        out.print(gson.toJson(result));
+                    }
+                } else {
+                    response.setStatus(500);
+                    JsonObject error = new JsonObject();
+                    error.addProperty("errors", true);
+                    error.addProperty("message", "Failed to register user");
+                    out.print(gson.toJson(error));
+                }
             }
-            
         } catch (Exception e) {
             response.setStatus(500);
             JsonObject error = new JsonObject();
@@ -189,50 +207,61 @@ public class UserController extends HttpServlet {
         }
     }
     
-    // POST /api/users/login - Login user
+    // POST /api/users/login - Login user (JSON format)
     private void login(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
         
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-        
-        if (email == null || password == null) {
-            response.setStatus(400);
-            JsonObject error = new JsonObject();
-            error.addProperty("errors", true);
-            error.addProperty("message", "Email and password are required");
-            out.print(gson.toJson(error));
-            return;
-        }
-        
-        try (Connection conn = DBConnection.getConnection()) {
-            String sql = "SELECT * FROM users WHERE email = ?";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, email);
-            ResultSet rs = pstmt.executeQuery();
+        try {
+            // Read JSON from request body
+            JsonObject json = getJsonFromRequest(request);
             
-            if (rs.next()) {
-                String hashedPassword = rs.getString("password");
+            String email = json.has("email") ? json.get("email").getAsString() : null;
+            String password = json.has("password") ? json.get("password").getAsString() : null;
+            
+            if (email == null || password == null) {
+                response.setStatus(400);
+                JsonObject error = new JsonObject();
+                error.addProperty("errors", true);
+                error.addProperty("message", "Email and password are required");
+                out.print(gson.toJson(error));
+                return;
+            }
+            
+            try (Connection conn = DBConnection.getConnection()) {
+                String sql = "SELECT * FROM users WHERE email = ?";
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setString(1, email);
+                ResultSet rs = pstmt.executeQuery();
                 
-                if (BCrypt.checkpw(password, hashedPassword)) {
-                    int userId = rs.getInt("id");
-                    String token = JWTUtil.generateToken(email, userId);
+                if (rs.next()) {
+                    String hashedPassword = rs.getString("password");
                     
-                    JsonObject userData = new JsonObject();
-                    userData.addProperty("id", userId);
-                    userData.addProperty("name", rs.getString("name"));
-                    userData.addProperty("email", rs.getString("email"));
-                    
-                    JsonObject data = new JsonObject();
-                    data.addProperty("token", token);
-                    data.add("user", userData);
-                    
-                    JsonObject result = new JsonObject();
-                    result.addProperty("errors", false);
-                    result.add("data", data);
-                    out.print(gson.toJson(result));
+                    if (BCrypt.checkpw(password, hashedPassword)) {
+                        int userId = rs.getInt("id");
+                        String token = JWTUtil.generateToken(email, userId);
+                        
+                        JsonObject userData = new JsonObject();
+                        userData.addProperty("id", userId);
+                        userData.addProperty("name", rs.getString("name"));
+                        userData.addProperty("email", rs.getString("email"));
+                        
+                        JsonObject data = new JsonObject();
+                        data.addProperty("token", token);
+                        data.add("user", userData);
+                        
+                        JsonObject result = new JsonObject();
+                        result.addProperty("errors", false);
+                        result.add("data", data);
+                        out.print(gson.toJson(result));
+                    } else {
+                        response.setStatus(401);
+                        JsonObject error = new JsonObject();
+                        error.addProperty("errors", true);
+                        error.addProperty("message", "Invalid email or password");
+                        out.print(gson.toJson(error));
+                    }
                 } else {
                     response.setStatus(401);
                     JsonObject error = new JsonObject();
@@ -240,14 +269,7 @@ public class UserController extends HttpServlet {
                     error.addProperty("message", "Invalid email or password");
                     out.print(gson.toJson(error));
                 }
-            } else {
-                response.setStatus(401);
-                JsonObject error = new JsonObject();
-                error.addProperty("errors", true);
-                error.addProperty("message", "Invalid email or password");
-                out.print(gson.toJson(error));
             }
-            
         } catch (Exception e) {
             response.setStatus(500);
             JsonObject error = new JsonObject();
@@ -266,51 +288,53 @@ public class UserController extends HttpServlet {
         String pathInfo = request.getPathInfo();
         int userId = Integer.parseInt(pathInfo.substring(1));
         
-        String name = request.getParameter("name");
-        String email = request.getParameter("email");
-        
-        try (Connection conn = DBConnection.getConnection()) {
-            StringBuilder sql = new StringBuilder("UPDATE users SET ");
-            boolean hasUpdate = false;
+        try {
+            JsonObject json = getJsonFromRequest(request);
+            String name = json.has("name") ? json.get("name").getAsString() : null;
+            String email = json.has("email") ? json.get("email").getAsString() : null;
             
-            if (name != null && !name.isEmpty()) {
-                sql.append("name = ?");
-                hasUpdate = true;
+            try (Connection conn = DBConnection.getConnection()) {
+                StringBuilder sql = new StringBuilder("UPDATE users SET ");
+                boolean hasUpdate = false;
+                
+                if (name != null && !name.isEmpty()) {
+                    sql.append("name = ?");
+                    hasUpdate = true;
+                }
+                if (email != null && !email.isEmpty()) {
+                    if (hasUpdate) sql.append(", ");
+                    sql.append("email = ?");
+                    hasUpdate = true;
+                }
+                
+                if (!hasUpdate) {
+                    response.setStatus(400);
+                    JsonObject error = new JsonObject();
+                    error.addProperty("errors", true);
+                    error.addProperty("message", "No fields to update");
+                    out.print(gson.toJson(error));
+                    return;
+                }
+                
+                sql.append(" WHERE id = ?");
+                
+                PreparedStatement pstmt = conn.prepareStatement(sql.toString());
+                int index = 1;
+                if (name != null && !name.isEmpty()) {
+                    pstmt.setString(index++, name);
+                }
+                if (email != null && !email.isEmpty()) {
+                    pstmt.setString(index++, email);
+                }
+                pstmt.setInt(index, userId);
+                
+                pstmt.executeUpdate();
+                
+                JsonObject result = new JsonObject();
+                result.addProperty("errors", false);
+                result.addProperty("message", "User updated successfully");
+                out.print(gson.toJson(result));
             }
-            if (email != null && !email.isEmpty()) {
-                if (hasUpdate) sql.append(", ");
-                sql.append("email = ?");
-                hasUpdate = true;
-            }
-            
-            if (!hasUpdate) {
-                response.setStatus(400);
-                JsonObject error = new JsonObject();
-                error.addProperty("errors", true);
-                error.addProperty("message", "No fields to update");
-                out.print(gson.toJson(error));
-                return;
-            }
-            
-            sql.append(" WHERE id = ?");
-            
-            PreparedStatement pstmt = conn.prepareStatement(sql.toString());
-            int index = 1;
-            if (name != null && !name.isEmpty()) {
-                pstmt.setString(index++, name);
-            }
-            if (email != null && !email.isEmpty()) {
-                pstmt.setString(index++, email);
-            }
-            pstmt.setInt(index, userId);
-            
-            pstmt.executeUpdate();
-            
-            JsonObject result = new JsonObject();
-            result.addProperty("errors", false);
-            result.addProperty("message", "User updated successfully");
-            out.print(gson.toJson(result));
-            
         } catch (Exception e) {
             response.setStatus(500);
             JsonObject error = new JsonObject();
